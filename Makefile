@@ -17,8 +17,8 @@ SRC_DIR     := codebase/app
 CORE_DIR    := core
 
 SRCS := \
-	$(CORE)/startup/startup_stm32f407vgtx.s \
-	$(CORE)/src/syscalls.c \
+	$(CORE_DIR)/startup/startup_stm32f407vgtx.s \
+	$(CORE_DIR)/src/syscalls.c \
 	$(SRC_DIR)/main.c
 
 # ============================================================
