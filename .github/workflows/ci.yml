@@ -1,10 +1,12 @@
-name: Build and Static Analysis
+name: Embedded CI
 
 on:
   push:
+  pull_request:
 
 jobs:
-  build_and_static_analysis:
+  build:
+    name: Build, Format & Static Analysis
     runs-on: ubuntu-latest
 
     container:
@@ -12,10 +14,18 @@ jobs:
       options: --user root
 
     steps:
-      - name: Checkout the repository
-        uses: actions/checkout@v3
+      - name: Checkout source
+        uses: actions/checkout@v4
 
-      - name: Build the project
+      - name: Mark workspace as safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Check code formatting
+        run: |
+          make format
+          git diff --quiet
+
+      - name: Build firmware
         run: make
 
       - name: Run static analysis
