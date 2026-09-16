@@ -1,16 +1,22 @@
 FROM ubuntu:26.04
 
-# Install necessary packages
 RUN DEBIAN_FRONTEND=noninteractive \
     apt-get update \
-    && apt-get install -y wget bzip2 xz-utils make unzip cppcheck \
+    && apt-get install -y wget bzip2 xz-utils make unzip cppcheck clang-format-21 git \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# ubuntu:26.04 base image already ships with an "ubuntu" user (uid=1000)
-# so we just modify the existing user instead of creating a new one.
-# Adding to sudo group for GitHub Actions permission compatibility.
-RUN usermod -rm -d /home/ubuntu -s /bin/bash -g root -G sudo \
-    -u 1001 ubuntu
+# Download and extract the ARM GNU toolchain
+RUN wget -q https://gitlab.arm.com/api/v4/projects/tooling%2Fgnu-toolchains-for-arm/packages/generic/gnu-toolchain/15.3.rel1/arm-gnu-toolchain-15.3.rel1-x86_64-arm-none-eabi.tar.xz -O /tmp/toolchain.tar.xz \
+    && mkdir -p /home/ubuntu/dev/tools \
+    && tar -xf /tmp/toolchain.tar.xz -C /home/ubuntu/dev/tools \
+    && rm /tmp/toolchain.tar.xz
+
+# ubuntu:26.04 already ships an "ubuntu" user (uid=1000).
+RUN usermod -aG sudo ubuntu \
+    && chown -R ubuntu:ubuntu /home/ubuntu/dev
+
+ENV TOOLCHAIN=/home/ubuntu/dev/tools/arm-gnu-toolchain-15.3.rel1-x86_64-arm-none-eabi
+
 USER ubuntu
 WORKDIR /home/ubuntu

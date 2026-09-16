@@ -1,8 +1,17 @@
 # ============================================================
+# Shell
+# ============================================================
+# bash + pipefail so that `$(CC) ... | tee log` below still fails the
+# build when $(CC) fails, instead of only reflecting tee's exit status.
+
+SHELL       := /bin/bash
+.SHELLFLAGS := -o pipefail -c
+
+# ============================================================
 # Toolchain
 # ============================================================
 
-TOOLCHAIN := /home/ubuntu/dev/tools/arm-gnu-toolchain-15.3.rel1-x86_64-arm-none-eabi
+TOOLCHAIN ?= /home/ubuntu/dev/tools/arm-gnu-toolchain-15.3.rel1-x86_64-arm-none-eabi
 TOOLBIN  := $(TOOLCHAIN)/bin
 
 CC      := $(TOOLBIN)/arm-none-eabi-gcc
@@ -16,14 +25,21 @@ TARGET      := firmware
 SRC_DIR     := codebase/app
 CORE_DIR    := core
 CPPCHECK    := cppcheck
+FORMAT     := clang-format-21
 
 SRCS := \
 $(CORE_DIR)/startup/startup_stm32f407vgtx.s \
 $(CORE_DIR)/src/syscalls.c \
 $(SRC_DIR)/main.c
 
-# cppcheck can't parse assembly, so only feed it C sources
+# NOTE: if main.c or the startup file call any HAL functions (very likely,
+# given USE_HAL_DRIVER is defined below) or SystemInit(), you also need the
+# relevant stm32f4xx_hal_*.c sources and system_stm32f4xx.c in this list,
+# or the link step will fail with "undefined reference" errors.
+
+# cppcheck and clang-format can't parse assembly, so only feed them C sources
 CPPCHECK_SRCS := $(filter %.c, $(SRCS))
+FORMAT_SRCS   := $(filter %.c, $(SRCS))
 
 # ============================================================
 # Output directories
@@ -102,9 +118,12 @@ all: dirs $(ELF) $(FW_BIN)
 dirs:
 	mkdir -p $(BIN_DIR) $(LOG_DIR)
 
-$(ELF): $(SRCS)
+# Order-only prerequisite on `dirs` (the "| dirs") guarantees $(LOG_DIR)
+# exists before the log redirection below runs, even if $(ELF) is built
+# directly (e.g. `make _builds/_bin/firmware.elf`) or with `make -j`.
+$(ELF): $(SRCS) | dirs
 	$(CC) $(CFLAGS) $(SRCS) $(LDFLAGS) -o $@ \
-	    > $(LOG_DIR)/build.log 2>&1
+	    2>&1 | tee $(LOG_DIR)/build.log
 
 $(FW_BIN): $(ELF)
 	$(OBJCOPY) -O binary $< $@
@@ -146,4 +165,7 @@ cppcheck:
 	    $(CPPCHECK_SRCS) \
 	    -i external/printf
 
-.PHONY: all dirs clean print flash cppcheck
+format:
+	@$(FORMAT) -i $(FORMAT_SRCS)
+
+.PHONY: all dirs clean print flash cppcheck format
